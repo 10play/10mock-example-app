@@ -1,0 +1,66 @@
+name: Ios tests only
+
+on:
+  push:
+    branches: [main, screenshot-testing]
+  pull_request:
+    branches: [main, testing]
+jobs:
+  build:
+    runs-on: macOS-latest
+    timeout-minutes: 100
+
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/setup-node@master
+
+      - name: Cache node modules
+        uses: actions/cache@v1
+        id: cache
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Rebuild detox
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: yarn detox clean-framework-cache && yarn detox build-framework-cache
+
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm install
+
+      - name: Cache Pods
+        uses: actions/cache@v1
+        id: podcache
+        with:
+          path: ios/Pods
+          key: pods-${{ hashFiles('**/Podfile.lock') }}
+
+      - name: Update Pods
+        run: |
+          gem update cocoapods xcodeproj
+          cd ios && pod install --repo-update && cd ..
+
+      - name: Download simulator
+        run: brew tap wix/brew
+
+      - name: Install simulator
+        run: brew install applesimutils
+
+      - name: Run mock server
+        run: ./node_modules/.bin/10mock & npx wait-on http://localhost:8000
+
+      - name: Build test app
+        run: npm run build-detox-ios
+
+      - name: Test app
+        run: npm run test-detox-ios
+
+      - name: Save Diffs
+        if: failure()
+        uses: actions/upload-artifact@v2
+        with:
+          name: snapshots diffs
+          path: |
+            screenshot_testing_ios/temp/*/diff-*.png
+          if-no-files-found: warn
