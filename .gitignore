@@ -62,3 +62,5 @@ buck-out/
 # CocoaPods
 /ios/Pods/
 android/java_pid3748.hprof
+
+screenshot_testing_ios/temp
